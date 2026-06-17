@@ -1,16 +1,23 @@
+import path from "path";
+import { fileURLToPath } from "url";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+
+const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vitejs.dev/config/
 export default defineConfig({
     base: "./",
     plugins: [react()],
+    resolve: {
+        alias: {
+            "#minpath": path.resolve(rootDir, "node_modules/vfile/lib/minpath.browser.js"),
+            "#minproc": path.resolve(rootDir, "node_modules/vfile/lib/minproc.browser.js"),
+            "#minurl": path.resolve(rootDir, "node_modules/vfile/lib/minurl.browser.js"),
+        },
+    },
     server: {
         host: "0.0.0.0",
     },
-    build: {
-        rollupOptions: {
-            external: ["#minpath", "#minproc", "#minurl"],
-        },
-    },
+    build: {},
 });
