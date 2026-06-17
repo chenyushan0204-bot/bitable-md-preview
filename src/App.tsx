@@ -1,73 +1,89 @@
 import './App.css';
-import { bitable, ITableMeta } from "@lark-base-open/js-sdk";
-import { Button, Form } from '@douyinfe/semi-ui';
-import { BaseFormApi } from '@douyinfe/semi-foundation/lib/es/form/interface';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import ConfigBar from './components/ConfigBar';
+import MarkdownPreview from './components/MarkdownPreview';
+import Toolbar from './components/Toolbar';
+import { useFieldMetaList, useMarkdownPreview } from './hooks/useMarkdownPreview';
+import { usePluginConfig } from './hooks/usePluginConfig';
+import { useTheme } from './hooks/useTheme';
+import { sanitizeFilename } from './utils/fieldValue';
 
 export default function App() {
-  const [tableMetaList, setTableMetaList] = useState<ITableMeta[]>();
-  const formApi = useRef<BaseFormApi>();
-  const addRecord = useCallback(async ({ table: tableId }: { table: string }) => {
-    if (tableId) {
-      const table = await bitable.base.getTableById(tableId);
-      table.addRecord({
-        fields: {},
-      });
-    }
-  }, []);
-  useEffect(() => {
-    Promise.all([bitable.base.getTableMetaList(), bitable.base.getSelection()])
-      .then(([metaList, selection]) => {
-        setTableMetaList(metaList);
-        formApi.current?.setValues({ table: selection.tableId });
-      });
-  }, []);
+  useTheme();
+  const { headerFieldId, setHeaderFieldId, ready } = usePluginConfig();
+  const fields = useFieldMetaList();
+  const { state, navigate, reloadCurrent } = useMarkdownPreview(headerFieldId, ready);
+
+  const filenameBase =
+    state.headerText.trim() ||
+    state.fieldName ||
+    (state.recordIndex >= 0 ? `record-${state.recordIndex + 1}` : 'preview');
+
+  const showPreview = state.status === 'ready' || state.status === 'empty';
+  const showHeader = Boolean(headerFieldId) && showPreview;
+
+  const handleHeaderFieldChange = async (fieldId: string) => {
+    await setHeaderFieldId(fieldId);
+    await reloadCurrent();
+  };
 
   return (
     <main className="main">
-      <h4>
-        Edit <code>src/App.tsx</code> and save to reload
-      </h4>
-      <Form labelPosition='top' onSubmit={addRecord} getFormApi={(baseFormApi: BaseFormApi) => formApi.current = baseFormApi}>
-        <Form.Slot label="Development guide">
-          <div>
-            <a href="https://lark-technologies.larksuite.com/docx/HvCbdSzXNowzMmxWgXsuB2Ngs7d" target="_blank"
-              rel="noopener noreferrer">
-              Base Extensions Guide
-            </a>
-            、
-            <a href="https://bytedance.feishu.cn/docx/HazFdSHH9ofRGKx8424cwzLlnZc" target="_blank"
-              rel="noopener noreferrer">
-              多维表格插件开发指南
-            </a>
-          </div>
-        </Form.Slot>
-        <Form.Slot label="API">
-          <div>
-            <a href="https://lark-technologies.larksuite.com/docx/Y6IcdywRXoTYSOxKwWvuLK09sFe" target="_blank"
-              rel="noopener noreferrer">
-              Base Extensions Front-end API
-            </a>
-            、
-            <a href="https://bytedance.feishu.cn/docx/HjCEd1sPzoVnxIxF3LrcKnepnUf" target="_blank"
-              rel="noopener noreferrer">
-              多维表格插件API
-            </a>
-          </div>
-        </Form.Slot>
-        <Form.Select field='table' label='Select Table' placeholder="Please select a Table" style={{ width: '100%' }}>
-          {
-            Array.isArray(tableMetaList) && tableMetaList.map(({ name, id }) => {
-              return (
-                <Form.Select.Option key={id} value={id}>
-                  {name}
-                </Form.Select.Option>
-              );
-            })
-          }
-        </Form.Select>
-        <Button theme='solid' htmlType='submit'>Add Record</Button>
-      </Form>
+      <header className="app-header">
+        <h1 className="app-title">Markdown 预览</h1>
+        <p className="app-hint">点击表格中的多行文本单元格即可预览</p>
+      </header>
+
+      <ConfigBar
+        fields={fields}
+        headerFieldId={headerFieldId}
+        onHeaderFieldChange={handleHeaderFieldChange}
+      />
+
+      <Toolbar
+        markdown={state.markdown}
+        filenameBase={sanitizeFilename(filenameBase)}
+        canNavigate={state.canNavigate}
+        recordIndex={state.recordIndex}
+        recordTotal={state.recordTotal}
+        onPrev={() => navigate(-1)}
+        onNext={() => navigate(1)}
+        disabled={!showPreview || state.status === 'empty'}
+      />
+
+      <section className="preview-panel">
+        {state.status === 'idle' && (
+          <div className="placeholder">请在左侧表格中选择一个多行文本单元格</div>
+        )}
+        {state.status === 'loading' && <div className="placeholder">加载中…</div>}
+        {state.status === 'wrong-field' && (
+          <div className="placeholder placeholder-warn">{state.errorMessage}</div>
+        )}
+        {state.status === 'error' && (
+          <div className="placeholder placeholder-error">{state.errorMessage}</div>
+        )}
+        {state.status === 'empty' && (
+          <>
+            {showHeader ? (
+              <div className="field-preview">
+                <div className="field-preview-label">{state.headerFieldName || '字段预览'}</div>
+                <div className="field-preview-value">{state.headerText || '（空）'}</div>
+              </div>
+            ) : null}
+            <div className="placeholder">当前单元格为空</div>
+          </>
+        )}
+        {state.status === 'ready' && (
+          <>
+            {showHeader ? (
+              <div className="field-preview">
+                <div className="field-preview-label">{state.headerFieldName || '字段预览'}</div>
+                <div className="field-preview-value">{state.headerText || '（空）'}</div>
+              </div>
+            ) : null}
+            <MarkdownPreview content={state.markdown} />
+          </>
+        )}
+      </section>
     </main>
-  )
+  );
 }
