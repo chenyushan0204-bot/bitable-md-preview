@@ -2,11 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   bitable,
   FieldType,
+  IAttachmentField,
   IFieldMeta,
   IGridView,
   ToastType,
   ViewType,
 } from '@lark-base-open/js-sdk';
+import { loadAttachmentMarkdown } from '../utils/attachmentPreview';
 import { getFieldDisplayText } from '../utils/fieldValue';
 
 export type PreviewStatus = 'idle' | 'loading' | 'ready' | 'wrong-field' | 'empty' | 'error';
@@ -76,17 +78,22 @@ export function useMarkdownPreview(headerFieldId: string, configReady: boolean) 
         const table = await bitable.base.getTableById(tableId);
         const fieldMeta = await table.getFieldMetaById(fieldId);
 
-        if (fieldMeta.type !== FieldType.Text) {
+        let markdown = '';
+
+        if (fieldMeta.type === FieldType.Text) {
+          markdown = await table.getCellString(fieldId, recordId);
+        } else if (fieldMeta.type === FieldType.Attachment) {
+          const attachmentField = await table.getField<IAttachmentField>(fieldId);
+          markdown = await loadAttachmentMarkdown(attachmentField, recordId);
+        } else {
           setState({
             ...initialState,
             status: 'wrong-field',
             fieldName: fieldMeta.name,
-            errorMessage: `「${fieldMeta.name}」不是多行文本字段，请点击包含 Markdown 的多行文本单元格。`,
+            errorMessage: `「${fieldMeta.name}」不支持预览，请点击多行文本或附件字段。`,
           });
           return;
         }
-
-        const markdown = await table.getCellString(fieldId, recordId);
         const activeHeaderFieldId = headerFieldIdRef.current;
         let headerText = '';
         let headerFieldName = '';

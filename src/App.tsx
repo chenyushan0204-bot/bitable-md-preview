@@ -30,7 +30,7 @@ export default function App() {
     <main className="main">
       <header className="app-header">
         <h1 className="app-title">Markdown 预览</h1>
-        <p className="app-hint">点击表格中的多行文本单元格即可预览</p>
+        <p className="app-hint">点击多行文本或附件单元格即可预览</p>
       </header>
 
       <ConfigBar
@@ -52,7 +52,7 @@ export default function App() {
 
       <section className="preview-panel">
         {state.status === 'idle' && (
-          <div className="placeholder">请在左侧表格中选择一个多行文本单元格</div>
+          <div className="placeholder">请在左侧表格中选择一个多行文本或附件单元格</div>
         )}
         {state.status === 'loading' && <div className="placeholder">加载中…</div>}
         {state.status === 'wrong-field' && (
