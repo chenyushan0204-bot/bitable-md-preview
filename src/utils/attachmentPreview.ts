@@ -1,10 +1,19 @@
-import type { IAttachmentField, IOpenAttachment } from '@lark-base-open/js-sdk';
+import { checkers, type IOpenAttachment, type ITable } from '@lark-base-open/js-sdk';
 
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg|bmp|heic|avif)$/i;
 
 export function isImageAttachment(att: IOpenAttachment): boolean {
   if (att.type?.startsWith('image/')) return true;
   return IMAGE_EXT.test(att.name);
+}
+
+export function extractAttachments(value: unknown): IOpenAttachment[] {
+  if (checkers.isAttachments(value)) return value;
+  if (checkers.isAttachment(value)) return [value];
+  if (Array.isArray(value)) {
+    return value.flatMap((item) => extractAttachments(item));
+  }
+  return [];
 }
 
 export function attachmentsToMarkdown(attachments: IOpenAttachment[], urls: string[]): string {
@@ -21,13 +30,18 @@ export function attachmentsToMarkdown(attachments: IOpenAttachment[], urls: stri
     .join('\n\n');
 }
 
-export async function loadAttachmentMarkdown(
-  attachmentField: IAttachmentField,
+export async function loadAttachmentMarkdownFromCell(
+  table: ITable,
+  fieldId: string,
   recordId: string,
 ): Promise<string> {
-  const attachments = await attachmentField.getValue(recordId);
+  const value = await table.getCellValue(fieldId, recordId);
+  const attachments = extractAttachments(value);
   if (!attachments.length) return '';
 
-  const urls = await attachmentField.getAttachmentUrls(recordId);
+  const tokens = attachments.map((att) => att.token).filter(Boolean);
+  if (!tokens.length) return '';
+
+  const urls = await table.getCellAttachmentUrls(tokens, fieldId, recordId);
   return attachmentsToMarkdown(attachments, urls);
 }

@@ -2,13 +2,12 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   bitable,
   FieldType,
-  IAttachmentField,
   IFieldMeta,
   IGridView,
   ToastType,
   ViewType,
 } from '@lark-base-open/js-sdk';
-import { loadAttachmentMarkdown } from '../utils/attachmentPreview';
+import { loadAttachmentMarkdownFromCell } from '../utils/attachmentPreview';
 import { getFieldDisplayText } from '../utils/fieldValue';
 
 export type PreviewStatus = 'idle' | 'loading' | 'ready' | 'wrong-field' | 'empty' | 'error';
@@ -78,19 +77,22 @@ export function useMarkdownPreview(headerFieldId: string, configReady: boolean) 
         const table = await bitable.base.getTableById(tableId);
         const fieldMeta = await table.getFieldMetaById(fieldId);
 
+        const field = await table.getField(fieldId);
+        const proxyType = await field.getProxyType();
+        const effectiveType = proxyType ?? fieldMeta.type;
+
         let markdown = '';
 
-        if (fieldMeta.type === FieldType.Text) {
+        if (effectiveType === FieldType.Text) {
           markdown = await table.getCellString(fieldId, recordId);
-        } else if (fieldMeta.type === FieldType.Attachment) {
-          const attachmentField = await table.getField<IAttachmentField>(fieldId);
-          markdown = await loadAttachmentMarkdown(attachmentField, recordId);
+        } else if (effectiveType === FieldType.Attachment) {
+          markdown = await loadAttachmentMarkdownFromCell(table, fieldId, recordId);
         } else {
           setState({
             ...initialState,
             status: 'wrong-field',
             fieldName: fieldMeta.name,
-            errorMessage: `「${fieldMeta.name}」不支持预览，请点击多行文本或附件字段。`,
+            errorMessage: `「${fieldMeta.name}」不支持预览，请点击多行文本、附件或引用附件的查找引用字段。`,
           });
           return;
         }
